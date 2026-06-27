@@ -9,4 +9,3 @@ export const defineConfig = (config: BotConfig) => {
     addons: config.addons ?? [],
   } satisfies Required<BotConfig>;
 };
-

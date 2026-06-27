@@ -24,7 +24,13 @@ export type BotCommand = {
   data: CommandData;
   execute: (interaction: ChatInputCommandInteraction, context: AppContext) => MaybePromise<void>;
   autocomplete?: (interaction: AutocompleteInteraction, context: AppContext) => MaybePromise<void>;
+  middleware?: CommandMiddleware[];
 };
+
+export type CommandMiddleware = (
+  interaction: ChatInputCommandInteraction,
+  context: AppContext,
+) => MaybePromise<boolean | void>;
 
 export type Addon = {
   name: string;

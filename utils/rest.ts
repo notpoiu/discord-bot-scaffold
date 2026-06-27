@@ -5,18 +5,19 @@ import { fileURLToPath, pathToFileURL } from "url";
 import { REST, Routes } from "discord.js";
 
 import Logger from "../logger.js";
-import type { BotCommand, CommandData } from "../types.js";
+import type { BotCommand, CommandData, CommandMiddleware } from "../types.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const commandsRoot = path.join(__dirname, "..", "commands");
 const commandExtensions = new Set([".js", ".ts"]);
+const middlewareNames = ["middleware.ts", "middleware.js"];
 
 const importFresh = async (filePath: string) => {
   const url = pathToFileURL(filePath);
   url.searchParams.set("updated", Date.now().toString());
 
-  return import(url.href) as Promise<{ default?: unknown }>;
+  return import(url.href) as Promise<{ default?: unknown; middleware?: unknown }>;
 };
 
 const isBotCommand = (command: unknown): command is BotCommand => {
@@ -40,41 +41,118 @@ const getErrorMessage = (error: unknown) => {
   return error instanceof Error ? error.message : String(error);
 };
 
+const isCommandMiddleware = (middleware: unknown): middleware is CommandMiddleware => {
+  return typeof middleware === "function";
+};
+
+const isCommandFile = (filePath: string) => {
+  return (
+    commandExtensions.has(path.extname(filePath)) &&
+    !filePath.endsWith(".d.ts") &&
+    path.basename(filePath, path.extname(filePath)) !== "middleware"
+  );
+};
+
+const getCommandFiles = (directory: string): string[] => {
+  return fs
+    .readdirSync(directory, { withFileTypes: true })
+    .flatMap((entry) => {
+      const entryPath = path.join(directory, entry.name);
+
+      if (entry.isDirectory()) {
+        return getCommandFiles(entryPath);
+      }
+
+      if (entry.isFile() && isCommandFile(entryPath)) {
+        return [entryPath];
+      }
+
+      return [];
+    })
+    .sort();
+};
+
+const getMiddlewarePaths = (commandFilePath: string) => {
+  const commandDirectory = path.dirname(commandFilePath);
+  const relativeDirectory = path.relative(commandsRoot, commandDirectory);
+  const directories = [commandsRoot];
+
+  if (relativeDirectory) {
+    const segments = relativeDirectory.split(path.sep);
+
+    for (let index = 0; index < segments.length; index += 1) {
+      directories.push(path.join(commandsRoot, ...segments.slice(0, index + 1)));
+    }
+  }
+
+  return directories
+    .map((directory) => {
+      return middlewareNames.map((file) => path.join(directory, file)).find((filePath) => fs.existsSync(filePath));
+    })
+    .filter((filePath): filePath is string => Boolean(filePath));
+};
+
+const loadMiddlewareFile = async (filePath: string) => {
+  try {
+    const output = await importFresh(filePath);
+    const middleware = output.default ?? output.middleware ?? output;
+
+    if (isCommandMiddleware(middleware)) {
+      return middleware;
+    }
+
+    Logger.warn(`The middleware at ${filePath} must export one function.`);
+  } catch (error) {
+    Logger.error(`Failed to import command middleware from ${filePath}: ${getErrorMessage(error)}`);
+  }
+
+  return undefined;
+};
+
+const loadMiddlewareForCommand = async (
+  commandFilePath: string,
+  middlewareCache: Map<string, CommandMiddleware | undefined>,
+) => {
+  const middleware: CommandMiddleware[] = [];
+
+  for (const filePath of getMiddlewarePaths(commandFilePath)) {
+    if (!middlewareCache.has(filePath)) {
+      middlewareCache.set(filePath, await loadMiddlewareFile(filePath));
+    }
+
+    const cachedMiddleware = middlewareCache.get(filePath);
+
+    if (cachedMiddleware) {
+      middleware.push(cachedMiddleware);
+    }
+  }
+
+  return middleware;
+};
+
 export const loadCommandModules = async () => {
   const commands: BotCommand[] = [];
+  const middlewareCache = new Map<string, CommandMiddleware | undefined>();
 
   if (!fs.existsSync(commandsRoot)) {
     Logger.warn("No commands directory found.");
     return commands;
   }
 
-  const commandFolders = fs
-    .readdirSync(commandsRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name);
+  for (const filePath of getCommandFiles(commandsRoot)) {
+    try {
+      const output = await importFresh(filePath);
+      const command = output.default || output;
 
-  for (const folder of commandFolders) {
-    const folderPath = path.join(commandsRoot, folder);
-    const commandFiles = fs
-      .readdirSync(folderPath)
-      .filter((file) => commandExtensions.has(path.extname(file)) && !file.endsWith(".d.ts"));
-
-    for (const file of commandFiles) {
-      const filePath = path.join(folderPath, file);
-
-      try {
-        const output = await importFresh(filePath);
-        const command = output.default || output;
-
-        if (isBotCommand(command)) {
-          commands.push(command);
-          continue;
-        }
-
-        Logger.warn(`The command at ${filePath} is missing a required "data" or "execute" property.`);
-      } catch (error) {
-        Logger.error(`Failed to import command from ${filePath}: ${getErrorMessage(error)}`);
+      if (isBotCommand(command)) {
+        command.middleware = await loadMiddlewareForCommand(filePath, middlewareCache);
+        commands.push(command);
+        continue;
       }
+
+      Logger.warn(`The command at ${filePath} is missing a required "data" or "execute" property.`);
+    } catch (error) {
+      Logger.error(`Failed to import command from ${filePath}: ${getErrorMessage(error)}`);
     }
   }
 

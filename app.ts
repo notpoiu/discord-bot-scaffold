@@ -41,6 +41,24 @@ const createContext = (config: Required<BotConfig>): AppContext => {
   };
 };
 
+const runCommandMiddleware = async (context: AppContext, interaction: Interaction) => {
+  if (!interaction.isChatInputCommand()) {
+    return false;
+  }
+
+  const command = context.commands.get(interaction.commandName);
+
+  for (const middleware of command?.middleware ?? []) {
+    const shouldContinue = await middleware(interaction, context);
+
+    if (shouldContinue === false) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
 const handleInteraction = async (context: AppContext, interaction: Interaction) => {
   if (interaction.isAutocomplete()) {
     const command = context.commands.get(interaction.commandName);
@@ -60,6 +78,12 @@ const handleInteraction = async (context: AppContext, interaction: Interaction) 
   }
 
   try {
+    const shouldRunCommand = await runCommandMiddleware(context, interaction);
+
+    if (!shouldRunCommand) {
+      return;
+    }
+
     await command.execute(interaction, context);
   } catch (error) {
     Logger.error(error instanceof Error ? error.stack || error.message : String(error));

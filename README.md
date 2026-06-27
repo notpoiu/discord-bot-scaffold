@@ -44,6 +44,39 @@ async execute(interaction, app) {
 }
 ```
 
+## Command Middleware
+
+Create `middleware.ts` files inside `commands/` to run checks before matching commands execute.
+
+Middleware priority follows the command folder depth:
+
+- `commands/middleware.ts` runs before every command.
+- `commands/admin/middleware.ts` runs before commands inside `commands/admin/`.
+- `commands/admin/users/middleware.ts` runs after both of the above for commands inside `commands/admin/users/`.
+
+```ts
+import { MessageFlags } from "discord.js";
+
+import type { CommandMiddleware } from "../types.js";
+
+const middleware: CommandMiddleware = async (interaction, app) => {
+  if (!interaction.inGuild()) {
+    await interaction.reply({
+      content: "Commands can only be used in a server.",
+      flags: MessageFlags.Ephemeral,
+    });
+
+    return false;
+  }
+
+  app.logger.info(`/${interaction.commandName} used by ${interaction.user.tag}`);
+};
+
+export default middleware;
+```
+
+Return `false` to stop the command; return nothing to continue.
+
 ## Addons
 
 Configure addons in `bot.config.ts`, similar to a `next.config.ts` file:
