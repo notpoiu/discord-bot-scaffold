@@ -1,0 +1,22 @@
+{
+  "name": "discord-bot-scaffold",
+  "version": "1.0.0",
+  "description": "Barebones Discord bot scaffold with slash commands and Components v2 helpers.",
+  "license": "MIT",
+  "author": "upio",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "dev": "node --no-warnings index.js",
+    "start": "node index.js",
+    "check": "node --check index.js && node --check logger.js && node --check utils/message.js && node --check utils/rest.js && node --check commands/general/ping.js"
+  },
+  "dependencies": {
+    "chalk": "^5.4.1",
+    "discord.js": "^14.26.4",
+    "dotenv": "^17.2.1"
+  },
+  "overrides": {
+    "undici": "6.27.0"
+  }
+}
