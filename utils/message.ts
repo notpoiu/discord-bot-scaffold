@@ -7,11 +7,23 @@ import {
   TextDisplayBuilder,
 } from "discord.js";
 
-export const createText = (content) => {
+type LinkButton = {
+  label: string;
+  url: string;
+};
+
+type EmbedOptions = {
+  title: string;
+  description: string;
+  footer?: string;
+  actionRow?: LinkButton[];
+};
+
+export const createText = (content: string) => {
   return new TextDisplayBuilder().setContent(content);
 };
 
-export const createEmbed = ({ title, description, footer, actionRow }) => {
+export const createEmbed = ({ title, description, footer, actionRow }: EmbedOptions) => {
   const container = new ContainerBuilder()
     .addTextDisplayComponents(createText(`## ${title}`))
     .addSeparatorComponents(new SeparatorBuilder())
@@ -31,7 +43,7 @@ export const createEmbed = ({ title, description, footer, actionRow }) => {
 
     container
       .addSeparatorComponents(new SeparatorBuilder())
-      .addActionRowComponents(new ActionRowBuilder().addComponents(...buttons));
+      .addActionRowComponents(new ActionRowBuilder<ButtonBuilder>().addComponents(...buttons));
   }
 
   return container;

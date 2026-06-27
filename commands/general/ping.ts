@@ -5,9 +5,10 @@ import {
   SlashCommandBuilder,
 } from "discord.js";
 
+import type { BotCommand } from "../../types.js";
 import { CreateEmbed } from "../../utils/message.js";
 
-export default {
+const command: BotCommand = {
   data: new SlashCommandBuilder()
     .setName("ping")
     .setDescription("Check whether the bot is online.")
@@ -43,3 +44,4 @@ export default {
   },
 };
 
+export default command;
