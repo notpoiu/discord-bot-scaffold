@@ -13,6 +13,6 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["*.ts", "addons/**/*.ts", "commands/**/*.ts", "utils/**/*.ts"],
+  "include": ["*.ts", "addons/**/*.ts", "commands/**/*.ts", "interactions/**/*.ts", "utils/**/*.ts"],
   "exclude": ["dist", "node_modules"]
 }

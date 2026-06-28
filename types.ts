@@ -1,8 +1,10 @@
 import type {
   AutocompleteInteraction,
+  ButtonInteraction,
   ChatInputCommandInteraction,
   Client,
   Collection,
+  ModalSubmitInteraction,
 } from "discord.js";
 import type { IncomingMessage, Server, ServerResponse } from "http";
 
@@ -31,6 +33,32 @@ export type CommandMiddleware = (
   interaction: ChatInputCommandInteraction,
   context: AppContext,
 ) => MaybePromise<boolean | void>;
+
+export type CustomIdParams = Record<string, string | number | boolean | null | undefined>;
+
+export type ParsedCustomId = {
+  customId: string;
+  id: string;
+  params: Record<string, string>;
+};
+
+export type ButtonHandler = {
+  id: string;
+  execute: (
+    interaction: ButtonInteraction,
+    context: AppContext,
+    params: ParsedCustomId["params"],
+  ) => MaybePromise<void>;
+};
+
+export type ModalHandler = {
+  id: string;
+  submit: (
+    interaction: ModalSubmitInteraction,
+    context: AppContext,
+    params: ParsedCustomId["params"],
+  ) => MaybePromise<void>;
+};
 
 export type Addon = {
   name: string;
@@ -82,6 +110,8 @@ export type AppContext = {
   logger: typeof Logger;
   client: Client;
   commands: Collection<string, BotCommand>;
+  buttons: Collection<string, ButtonHandler>;
+  modals: Collection<string, ModalHandler>;
   services: ServiceRegistry;
   addons: string[];
   startedAt: number;

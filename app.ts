@@ -4,8 +4,11 @@ import {
   Events,
   GatewayIntentBits,
   MessageFlags,
+  type ButtonInteraction,
+  type ChatInputCommandInteraction,
   type Interaction,
   type InteractionReplyOptions,
+  type ModalSubmitInteraction,
 } from "discord.js";
 
 import defaultConfig from "./bot.config.js";
@@ -14,6 +17,7 @@ import { env } from "./env.js";
 import Logger from "./logger.js";
 import { ServiceRegistry } from "./services.js";
 import { setupAddons, startAddons, stopAddons } from "./utils/addons.js";
+import { loadInteractionHandlers, parseCustomId } from "./utils/interactions.js";
 import { loadCommandModules, synchronizeSlashCommands } from "./utils/rest.js";
 import type { Addon, AppContext } from "./types.js";
 
@@ -35,17 +39,15 @@ const createContext = (config: Required<BotConfig>): AppContext => {
       intents: [GatewayIntentBits.Guilds],
     }),
     commands: new Collection(),
+    buttons: new Collection(),
+    modals: new Collection(),
     services: new ServiceRegistry(),
     addons: [],
     startedAt: Date.now(),
   };
 };
 
-const runCommandMiddleware = async (context: AppContext, interaction: Interaction) => {
-  if (!interaction.isChatInputCommand()) {
-    return false;
-  }
-
+const runCommandMiddleware = async (context: AppContext, interaction: ChatInputCommandInteraction) => {
   const command = context.commands.get(interaction.commandName);
 
   for (const middleware of command?.middleware ?? []) {
@@ -59,17 +61,25 @@ const runCommandMiddleware = async (context: AppContext, interaction: Interactio
   return true;
 };
 
-const handleInteraction = async (context: AppContext, interaction: Interaction) => {
-  if (interaction.isAutocomplete()) {
-    const command = context.commands.get(interaction.commandName);
-    await command?.autocomplete?.(interaction, context);
+const replyWithInteractionError = async (interaction: Interaction) => {
+  if (!interaction.isRepliable()) {
     return;
   }
 
-  if (!interaction.isChatInputCommand()) {
+  const response: InteractionReplyOptions = {
+    content: "There was an error while executing this interaction.",
+    flags: MessageFlags.Ephemeral,
+  };
+
+  if (interaction.replied || interaction.deferred) {
+    await interaction.followUp(response);
     return;
   }
 
+  await interaction.reply(response);
+};
+
+const handleCommandInteraction = async (context: AppContext, interaction: ChatInputCommandInteraction) => {
   const command = context.commands.get(interaction.commandName);
 
   if (!command) {
@@ -77,28 +87,63 @@ const handleInteraction = async (context: AppContext, interaction: Interaction) 
     return;
   }
 
-  try {
-    const shouldRunCommand = await runCommandMiddleware(context, interaction);
+  const shouldRunCommand = await runCommandMiddleware(context, interaction);
 
-    if (!shouldRunCommand) {
+  if (!shouldRunCommand) {
+    return;
+  }
+
+  await command.execute(interaction, context);
+};
+
+const handleButtonInteraction = async (context: AppContext, interaction: ButtonInteraction) => {
+  const parsedCustomId = parseCustomId(interaction.customId);
+  const button = context.buttons.get(parsedCustomId.id);
+
+  if (!button) {
+    Logger.warn(`No button handler matching "${parsedCustomId.id}" was found for "${interaction.customId}".`);
+    return;
+  }
+
+  await button.execute(interaction, context, parsedCustomId.params);
+};
+
+const handleModalInteraction = async (context: AppContext, interaction: ModalSubmitInteraction) => {
+  const parsedCustomId = parseCustomId(interaction.customId);
+  const modal = context.modals.get(parsedCustomId.id);
+
+  if (!modal) {
+    Logger.warn(`No modal handler matching "${parsedCustomId.id}" was found for "${interaction.customId}".`);
+    return;
+  }
+
+  await modal.submit(interaction, context, parsedCustomId.params);
+};
+
+const handleInteraction = async (context: AppContext, interaction: Interaction) => {
+  try {
+    if (interaction.isAutocomplete()) {
+      const command = context.commands.get(interaction.commandName);
+      await command?.autocomplete?.(interaction, context);
       return;
     }
 
-    await command.execute(interaction, context);
+    if (interaction.isChatInputCommand()) {
+      await handleCommandInteraction(context, interaction);
+      return;
+    }
+
+    if (interaction.isButton()) {
+      await handleButtonInteraction(context, interaction);
+      return;
+    }
+
+    if (interaction.isModalSubmit()) {
+      await handleModalInteraction(context, interaction);
+    }
   } catch (error) {
     Logger.error(error instanceof Error ? error.stack || error.message : String(error));
-
-    const response: InteractionReplyOptions = {
-      content: "There was an error while executing this command.",
-      flags: MessageFlags.Ephemeral,
-    };
-
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp(response);
-      return;
-    }
-
-    await interaction.reply(response);
+    await replyWithInteractionError(interaction);
   }
 };
 
@@ -110,10 +155,21 @@ export const createApp = (config = defaultConfig) => {
   const start = async () => {
     printBanner();
 
-    const loadedCommands = await loadCommandModules();
+    const [loadedCommands, loadedInteractions] = await Promise.all([
+      loadCommandModules(),
+      loadInteractionHandlers(),
+    ]);
 
     for (const command of loadedCommands) {
       context.commands.set(command.data.name, command);
+    }
+
+    for (const [id, button] of loadedInteractions.buttons) {
+      context.buttons.set(id, button);
+    }
+
+    for (const [id, modal] of loadedInteractions.modals) {
+      context.modals.set(id, modal);
     }
 
     await setupAddons(context, loadedAddons);

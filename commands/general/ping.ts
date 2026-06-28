@@ -1,12 +1,11 @@
 import {
   ApplicationIntegrationType,
   InteractionContextType,
-  MessageFlags,
   SlashCommandBuilder,
 } from "discord.js";
 
+import { createPingResponse } from "../../interactions/buttons/ping-refresh.js";
 import type { BotCommand } from "../../types.js";
-import { CreateEmbed } from "../../utils/message.js";
 
 const command: BotCommand = {
   data: new SlashCommandBuilder()
@@ -18,29 +17,11 @@ const command: BotCommand = {
   async execute(interaction) {
     const startedAt = Date.now();
 
-    await interaction.reply({
-      components: [
-        CreateEmbed({
-          title: "Pong",
-          description: "Checking Discord API latency...",
-          footer: `WebSocket latency: ${interaction.client.ws.ping}ms`,
-        }),
-      ],
-      flags: MessageFlags.IsComponentsV2,
-    });
+    await interaction.reply(createPingResponse("Checking Discord API latency...", interaction.client.ws.ping));
 
     const latency = Date.now() - startedAt;
 
-    await interaction.editReply({
-      components: [
-        CreateEmbed({
-          title: "Pong",
-          description: `Discord API latency: **${latency}ms**`,
-          footer: `WebSocket latency: ${interaction.client.ws.ping}ms`,
-        }),
-      ],
-      flags: MessageFlags.IsComponentsV2,
-    });
+    await interaction.editReply(createPingResponse(`Discord API latency: **${latency}ms**`, interaction.client.ws.ping));
   },
 };
 

@@ -7,16 +7,26 @@ import {
   TextDisplayBuilder,
 } from "discord.js";
 
+import type { CustomIdParams } from "../types.js";
+import { createButton, type CreateButtonOptions } from "./interactions.js";
+
 type LinkButton = {
   label: string;
   url: string;
 };
 
+type CustomButton = CreateButtonOptions & {
+  id: string;
+  params?: CustomIdParams;
+};
+
+type EmbedButton = LinkButton | CustomButton | ButtonBuilder;
+
 type EmbedOptions = {
   title: string;
   description: string;
   footer?: string;
-  actionRow?: LinkButton[];
+  actionRow?: EmbedButton[];
 };
 
 export const createText = (content: string) => {
@@ -44,10 +54,14 @@ export const createEmbed = ({
         return button;
       }
 
-      return new ButtonBuilder()
-        .setLabel(button.label)
-        .setStyle(ButtonStyle.Link)
-        .setURL(button.url);
+      if ("url" in button) {
+        return new ButtonBuilder()
+          .setLabel(button.label)
+          .setStyle(ButtonStyle.Link)
+          .setURL(button.url);
+      }
+
+      return createButton(button.id, button, button.params);
     });
 
     container

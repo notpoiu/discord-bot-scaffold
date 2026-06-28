@@ -77,6 +77,79 @@ export default middleware;
 
 Return `false` to stop the command; return nothing to continue.
 
+## Buttons and Modals
+
+Put button and modal submit logic in `interactions/`:
+
+- `interactions/buttons/<name>.ts`
+- `interactions/modals/<name>.ts`
+
+Handlers are loaded by ID from their exported object:
+
+```ts
+import { defineButton } from "../../utils/interactions.js";
+
+export default defineButton({
+  id: "ticket.close",
+
+  async execute(interaction, app, params) {
+    await interaction.reply({
+      content: `Closing ticket ${params.ticketId}`,
+      ephemeral: true,
+    });
+  },
+});
+```
+
+Create matching custom IDs with the shared helpers:
+
+```ts
+import { ButtonStyle } from "discord.js";
+
+import { createButton, createModalId } from "./utils/interactions.js";
+
+const closeButton = createButton(
+  "ticket.close",
+  { label: "Close", style: ButtonStyle.Danger },
+  { ticketId: "123" },
+);
+
+const modalId = createModalId("feedback.submit", { source: "ping" });
+```
+
+Custom IDs use `id?key=value` internally, like `ticket.close?ticketId=123`, and are capped at Discord's 100 character custom ID limit.
+
+Modal files follow the same shape:
+
+```ts
+import { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } from "discord.js";
+
+import { createModalId, defineModal } from "../../utils/interactions.js";
+
+export const createFeedbackModal = () => {
+  const input = new TextInputBuilder()
+    .setCustomId("message")
+    .setLabel("Message")
+    .setStyle(TextInputStyle.Paragraph);
+
+  return new ModalBuilder()
+    .setCustomId(createModalId("feedback.submit"))
+    .setTitle("Feedback")
+    .addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(input));
+};
+
+export default defineModal({
+  id: "feedback.submit",
+
+  async submit(interaction) {
+    const message = interaction.fields.getTextInputValue("message");
+    await interaction.reply({ content: `Received: ${message}`, ephemeral: true });
+  },
+});
+```
+
+The included `/ping` command uses `interactions/buttons/ping-refresh.ts` as a small button example.
+
 ## Addons
 
 Configure addons in `bot.config.ts`, similar to a `next.config.ts` file:
