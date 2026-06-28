@@ -23,7 +23,12 @@ export const createText = (content: string) => {
   return new TextDisplayBuilder().setContent(content);
 };
 
-export const createEmbed = ({ title, description, footer, actionRow }: EmbedOptions) => {
+export const createEmbed = ({
+  title,
+  description,
+  footer,
+  actionRow,
+}: EmbedOptions) => {
   const container = new ContainerBuilder()
     .addTextDisplayComponents(createText(`## ${title}`))
     .addSeparatorComponents(new SeparatorBuilder())
@@ -35,6 +40,10 @@ export const createEmbed = ({ title, description, footer, actionRow }: EmbedOpti
 
   if (actionRow?.length) {
     const buttons = actionRow.map((button) => {
+      if (button instanceof ButtonBuilder) {
+        return button;
+      }
+
       return new ButtonBuilder()
         .setLabel(button.label)
         .setStyle(ButtonStyle.Link)
@@ -43,7 +52,9 @@ export const createEmbed = ({ title, description, footer, actionRow }: EmbedOpti
 
     container
       .addSeparatorComponents(new SeparatorBuilder())
-      .addActionRowComponents(new ActionRowBuilder<ButtonBuilder>().addComponents(...buttons));
+      .addActionRowComponents(
+        new ActionRowBuilder<ButtonBuilder>().addComponents(...buttons),
+      );
   }
 
   return container;
@@ -51,4 +62,3 @@ export const createEmbed = ({ title, description, footer, actionRow }: EmbedOpti
 
 export const CreateText = createText;
 export const CreateEmbed = createEmbed;
-
