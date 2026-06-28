@@ -44,7 +44,7 @@ async execute(interaction, app) {
 }
 ```
 
-Commands, buttons, and modals are public by default. Add `access` when a handler should be restricted:
+Commands and modals are public by default. Buttons are locked to the user who created the original command response by default. Add `access` when a handler should use a different access rule:
 
 ```ts
 import config from "../../bot.config.js";
@@ -87,6 +87,8 @@ export default config;
 ```
 
 `accessDeniedResponse` can also be a plain string; the scaffold wraps strings in the default Components v2 access-denied card.
+
+Button access is resolved from the button handler first, then the source command, then `author`.
 
 Because those helpers are created from your config, TypeScript autocompletes `access` as `"everyone" | "author" | "staff"`:
 

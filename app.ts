@@ -206,7 +206,7 @@ const handleButtonInteraction = async (context: AppContext, interaction: ButtonI
   }
 
   const inheritedAccess = getInteractionMessageCommand(context, interaction)?.access;
-  const shouldRunButton = await canRunAccess(context, interaction, button.access ?? inheritedAccess);
+  const shouldRunButton = await canRunAccess(context, interaction, button.access ?? inheritedAccess ?? "author");
 
   if (!shouldRunButton) {
     return;
