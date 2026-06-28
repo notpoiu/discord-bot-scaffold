@@ -6,10 +6,10 @@ export default defineConfig({
   addons: [
     database({
       path: "data/app.sqlite",
+      schema: import("./schema.js"),
     }),
     http({
       port: 3000,
     }),
   ],
 });
-

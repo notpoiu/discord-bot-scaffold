@@ -90,6 +90,7 @@ export default defineConfig({
   addons: [
     database({
       path: "data/app.sqlite",
+      schema: import("./schema.js"),
     }),
     http({
       port: 3000,
@@ -101,7 +102,32 @@ export default defineConfig({
 Included addons:
 
 - `http` starts a tiny Node HTTP server with `/` and `/health`.
-- `database` opens a SQLite database with `better-sqlite3` and registers `app.services.get("db")`.
+- `database` opens a SQLite database with `better-sqlite3`, runs schema migrations, and registers `app.services.get("db")`.
+
+Database schemas live in a normal TypeScript file:
+
+```ts
+import { defineDatabaseSchema } from "./addons/database.js";
+
+export default defineDatabaseSchema({
+  migrations: [
+    {
+      id: "001_create_key_value_table",
+      up(db) {
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS key_value (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+          );
+        `);
+      },
+    },
+  ],
+});
+```
+
+Use `schema: import("./schema.js")` in `bot.config.ts`. Even though the source file is `schema.ts`, the `.js` specifier is the Node ESM pattern TypeScript emits for production builds.
 
 When both are enabled, the database addon also adds `/db/health` to the HTTP server. The service registry connects addons even if they load in either order:
 
