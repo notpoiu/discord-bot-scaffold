@@ -2,7 +2,7 @@ import { database } from "./addons/database.js";
 import { http } from "./addons/http.js";
 import { defineConfig } from "./config.js";
 
-export default defineConfig({
+const config = defineConfig({
   addons: [
     database({
       path: "data/app.sqlite",
@@ -13,3 +13,5 @@ export default defineConfig({
     }),
   ],
 });
+
+export default config;

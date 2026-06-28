@@ -44,6 +44,64 @@ async execute(interaction, app) {
 }
 ```
 
+Commands, buttons, and modals are public by default. Add `access` when a handler should be restricted:
+
+```ts
+import config from "../../bot.config.js";
+
+const command = config.defineCommand({
+  data,
+  access: "staff",
+  async execute(interaction, app) {
+    // ...
+  },
+});
+```
+
+Built-in access names are `everyone` and `author`. Define custom access groups and the denial response in `bot.config.ts`:
+
+```ts
+import { MessageFlags } from "discord.js";
+
+import { defineConfig } from "./config.js";
+import { CreateEmbed } from "./utils/message.js";
+
+const config = defineConfig({
+  access: {
+    staff(userId, app) {
+      return Boolean(app.services.get("db")?.prepare("SELECT 1 FROM staff WHERE discord_id = ?").get(userId));
+    },
+  },
+  accessDeniedResponse: ({ access }) => ({
+    components: [
+      CreateEmbed({
+        title: "Access Denied",
+        description: `You need ${access} access to use this.`,
+      }),
+    ],
+    flags: [MessageFlags.Ephemeral, MessageFlags.IsComponentsV2],
+  }),
+});
+
+export default config;
+```
+
+`accessDeniedResponse` can also be a plain string; the scaffold wraps strings in the default Components v2 access-denied card.
+
+Because those helpers are created from your config, TypeScript autocompletes `access` as `"everyone" | "author" | "staff"`:
+
+```ts
+import config from "../../bot.config.js";
+
+export default config.defineButton({
+  id: "example.refresh",
+  access: "staff",
+  async execute(interaction, app) {
+    // ...
+  },
+});
+```
+
 ## Command Middleware
 
 Create `middleware.ts` files inside `commands/` to run checks before matching commands execute.
@@ -87,9 +145,9 @@ Put button and modal submit logic in `interactions/`:
 Handlers are loaded by ID from their exported object:
 
 ```ts
-import { defineButton } from "../../utils/interactions.js";
+import config from "../../bot.config.js";
 
-export default defineButton({
+export default config.defineButton({
   id: "ticket.close",
 
   async execute(interaction, app, params) {
@@ -124,7 +182,8 @@ Modal files follow the same shape:
 ```ts
 import { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } from "discord.js";
 
-import { createModalId, defineModal } from "../../utils/interactions.js";
+import config from "../../bot.config.js";
+import { createModalId } from "../../utils/interactions.js";
 
 export const createFeedbackModal = () => {
   const input = new TextInputBuilder()
@@ -138,7 +197,7 @@ export const createFeedbackModal = () => {
     .addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(input));
 };
 
-export default defineModal({
+export default config.defineModal({
   id: "feedback.submit",
 
   async submit(interaction) {

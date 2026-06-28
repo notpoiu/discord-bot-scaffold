@@ -20,12 +20,12 @@ const importFresh = async (filePath: string) => {
   return import(url.href) as Promise<{ default?: unknown; middleware?: unknown }>;
 };
 
-const isBotCommand = (command: unknown): command is BotCommand => {
+const isBotCommand = (command: unknown): command is BotCommand<string> => {
   if (!command || typeof command !== "object") {
     return false;
   }
 
-  const maybeCommand = command as Partial<BotCommand>;
+  const maybeCommand = command as Partial<BotCommand<string>>;
   const maybeData = maybeCommand.data as Partial<CommandData> | undefined;
 
   return Boolean(
@@ -131,7 +131,7 @@ const loadMiddlewareForCommand = async (
 };
 
 export const loadCommandModules = async () => {
-  const commands: BotCommand[] = [];
+  const commands: Array<BotCommand<string>> = [];
   const middlewareCache = new Map<string, CommandMiddleware | undefined>();
 
   if (!fs.existsSync(commandsRoot)) {

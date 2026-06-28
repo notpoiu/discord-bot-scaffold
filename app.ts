@@ -18,8 +18,9 @@ import Logger from "./logger.js";
 import { ServiceRegistry } from "./services.js";
 import { setupAddons, startAddons, stopAddons } from "./utils/addons.js";
 import { loadInteractionHandlers, parseCustomId } from "./utils/interactions.js";
+import { CreateEmbed } from "./utils/message.js";
 import { loadCommandModules, synchronizeSlashCommands } from "./utils/rest.js";
-import type { Addon, AppContext } from "./types.js";
+import type { AccessInteraction, AccessName, Addon, AppContext } from "./types.js";
 
 const printBanner = () => {
   console.log(`    Discord Bot
@@ -30,7 +31,7 @@ const printBanner = () => {
 `);
 };
 
-const createContext = (config: Required<BotConfig>): AppContext => {
+const createContext = (config: Required<BotConfig<any>>): AppContext => {
   return {
     env,
     config,
@@ -79,11 +80,110 @@ const replyWithInteractionError = async (interaction: Interaction) => {
   await interaction.reply(response);
 };
 
+const getInteractionMessage = (interaction: AccessInteraction) => {
+  return "message" in interaction ? interaction.message : undefined;
+};
+
+const getInteractionMessageCommand = (context: AppContext, interaction: AccessInteraction) => {
+  const commandName = getInteractionMessage(interaction)?.interaction?.commandName;
+
+  if (!commandName) {
+    return undefined;
+  }
+
+  return context.commands.get(commandName);
+};
+
+const getInteractionAuthorId = (interaction: AccessInteraction) => {
+  const message = getInteractionMessage(interaction);
+  return message?.interactionMetadata?.user.id ?? message?.interaction?.user.id ?? interaction.user.id;
+};
+
+const getAccessDeniedResponse = async (
+  context: AppContext,
+  interaction: AccessInteraction,
+  access: AccessName<string>,
+) => {
+  const response = context.config.accessDeniedResponse;
+
+  if (typeof response === "function") {
+    return response({ access, context, interaction });
+  }
+
+  return response;
+};
+
+const normalizeAccessDeniedResponse = (response: string | InteractionReplyOptions): InteractionReplyOptions => {
+  if (typeof response !== "string") {
+    return response;
+  }
+
+  return {
+    components: [
+      CreateEmbed({
+        title: "Access Denied",
+        description: response,
+      }),
+    ],
+    flags: [MessageFlags.Ephemeral, MessageFlags.IsComponentsV2],
+  };
+};
+
+const replyWithAccessDenied = async (
+  context: AppContext,
+  interaction: AccessInteraction,
+  access: AccessName<string>,
+) => {
+  const response = normalizeAccessDeniedResponse(await getAccessDeniedResponse(context, interaction, access));
+
+  if (interaction.replied || interaction.deferred) {
+    await interaction.followUp(response);
+    return;
+  }
+
+  await interaction.reply(response);
+};
+
+const canRunAccess = async (
+  context: AppContext,
+  interaction: AccessInteraction,
+  requestedAccess?: AccessName<string>,
+) => {
+  const access = requestedAccess ?? "everyone";
+
+  if (access === "everyone") {
+    return true;
+  }
+
+  if (access === "author" && getInteractionAuthorId(interaction) === interaction.user.id) {
+    return true;
+  }
+
+  const customAccessGroup = access === "author" ? undefined : context.config.access[access];
+
+  if (customAccessGroup && (await customAccessGroup(interaction.user.id, context, interaction))) {
+    return true;
+  }
+
+  if (!customAccessGroup && access !== "author") {
+    Logger.warn(`No access group named "${access}" was found.`);
+  }
+
+  await replyWithAccessDenied(context, interaction, access);
+  return false;
+};
+
 const handleCommandInteraction = async (context: AppContext, interaction: ChatInputCommandInteraction) => {
   const command = context.commands.get(interaction.commandName);
 
   if (!command) {
     Logger.warn(`No command matching /${interaction.commandName} was found.`);
+    return;
+  }
+
+  const shouldPassAccess = await canRunAccess(context, interaction, command.access);
+
+  if (!shouldPassAccess) {
     return;
   }
 
@@ -105,6 +205,13 @@ const handleButtonInteraction = async (context: AppContext, interaction: ButtonI
     return;
   }
 
+  const inheritedAccess = getInteractionMessageCommand(context, interaction)?.access;
+  const shouldRunButton = await canRunAccess(context, interaction, button.access ?? inheritedAccess);
+
+  if (!shouldRunButton) {
+    return;
+  }
+
   await button.execute(interaction, context, parsedCustomId.params);
 };
 
@@ -114,6 +221,13 @@ const handleModalInteraction = async (context: AppContext, interaction: ModalSub
 
   if (!modal) {
     Logger.warn(`No modal handler matching "${parsedCustomId.id}" was found for "${interaction.customId}".`);
+    return;
+  }
+
+  const inheritedAccess = getInteractionMessageCommand(context, interaction)?.access;
+  const shouldSubmitModal = await canRunAccess(context, interaction, modal.access ?? inheritedAccess);
+
+  if (!shouldSubmitModal) {
     return;
   }
 

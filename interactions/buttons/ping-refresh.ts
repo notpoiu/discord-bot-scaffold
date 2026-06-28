@@ -1,6 +1,6 @@
 import { ButtonStyle, MessageFlags } from "discord.js";
 
-import { defineButton } from "../../utils/interactions.js";
+import config from "../../bot.config.js";
 import { CreateEmbed } from "../../utils/message.js";
 
 const pingRefreshButtonId = "ping.refresh";
@@ -25,7 +25,7 @@ export const createPingResponse = (description: string, websocketLatency: number
   };
 };
 
-export default defineButton({
+export default config.defineButton({
   id: pingRefreshButtonId,
 
   async execute(interaction) {

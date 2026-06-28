@@ -139,7 +139,7 @@ const getInteractionFiles = (directory: string): string[] => {
     .sort();
 };
 
-const isButtonHandler = (handler: unknown): handler is ButtonHandler => {
+const isButtonHandler = (handler: unknown): handler is ButtonHandler<string> => {
   if (!handler || typeof handler !== "object") {
     return false;
   }
@@ -149,7 +149,7 @@ const isButtonHandler = (handler: unknown): handler is ButtonHandler => {
   return typeof maybeHandler.id === "string" && typeof maybeHandler.execute === "function";
 };
 
-const isModalHandler = (handler: unknown): handler is ModalHandler => {
+const isModalHandler = (handler: unknown): handler is ModalHandler<string> => {
   if (!handler || typeof handler !== "object") {
     return false;
   }
@@ -160,8 +160,8 @@ const isModalHandler = (handler: unknown): handler is ModalHandler => {
 };
 
 const registerButtonHandler = (
-  buttons: Collection<string, ButtonHandler>,
-  handler: ButtonHandler,
+  buttons: Collection<string, ButtonHandler<string>>,
+  handler: ButtonHandler<string>,
   filePath: string,
 ) => {
   if (buttons.has(handler.id)) {
@@ -173,8 +173,8 @@ const registerButtonHandler = (
 };
 
 const registerModalHandler = (
-  modals: Collection<string, ModalHandler>,
-  handler: ModalHandler,
+  modals: Collection<string, ModalHandler<string>>,
+  handler: ModalHandler<string>,
   filePath: string,
 ) => {
   if (modals.has(handler.id)) {
@@ -186,7 +186,7 @@ const registerModalHandler = (
 };
 
 const loadButtonHandlers = async () => {
-  const buttons = new Collection<string, ButtonHandler>();
+  const buttons = new Collection<string, ButtonHandler<string>>();
   const directory = path.join(interactionsRoot, "buttons");
 
   for (const filePath of getInteractionFiles(directory)) {
@@ -209,7 +209,7 @@ const loadButtonHandlers = async () => {
 };
 
 const loadModalHandlers = async () => {
-  const modals = new Collection<string, ModalHandler>();
+  const modals = new Collection<string, ModalHandler<string>>();
   const directory = path.join(interactionsRoot, "modals");
 
   for (const filePath of getInteractionFiles(directory)) {

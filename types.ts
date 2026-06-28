@@ -4,6 +4,7 @@ import type {
   ChatInputCommandInteraction,
   Client,
   Collection,
+  InteractionReplyOptions,
   ModalSubmitInteraction,
 } from "discord.js";
 import type { IncomingMessage, Server, ServerResponse } from "http";
@@ -22,8 +23,9 @@ export type CommandData = {
   toJSON: () => unknown;
 };
 
-export type BotCommand = {
+export type BotCommand<TAccess extends string = never> = {
   data: CommandData;
+  access?: AccessName<TAccess>;
   execute: (interaction: ChatInputCommandInteraction, context: AppContext) => MaybePromise<void>;
   autocomplete?: (interaction: AutocompleteInteraction, context: AppContext) => MaybePromise<void>;
   middleware?: CommandMiddleware[];
@@ -42,8 +44,9 @@ export type ParsedCustomId = {
   params: Record<string, string>;
 };
 
-export type ButtonHandler = {
+export type ButtonHandler<TAccess extends string = never> = {
   id: string;
+  access?: AccessName<TAccess>;
   execute: (
     interaction: ButtonInteraction,
     context: AppContext,
@@ -51,14 +54,36 @@ export type ButtonHandler = {
   ) => MaybePromise<void>;
 };
 
-export type ModalHandler = {
+export type ModalHandler<TAccess extends string = never> = {
   id: string;
+  access?: AccessName<TAccess>;
   submit: (
     interaction: ModalSubmitInteraction,
     context: AppContext,
     params: ParsedCustomId["params"],
   ) => MaybePromise<void>;
 };
+
+export type AccessName<TAccess extends string = never> = "author" | "everyone" | TAccess;
+
+export type AccessInteraction = ChatInputCommandInteraction | ButtonInteraction | ModalSubmitInteraction;
+
+export type AccessCheck = (
+  discordId: string,
+  context: AppContext,
+  interaction: AccessInteraction,
+) => MaybePromise<boolean>;
+
+export type AccessDeniedContext<TAccess extends string = string> = {
+  access: AccessName<TAccess>;
+  context: AppContext;
+  interaction: AccessInteraction;
+};
+
+export type AccessDeniedResponse<TAccess extends string = string> =
+  | string
+  | InteractionReplyOptions
+  | ((details: AccessDeniedContext<TAccess>) => MaybePromise<string | InteractionReplyOptions>);
 
 export type Addon = {
   name: string;
@@ -106,12 +131,12 @@ export type ServiceMap = {
 
 export type AppContext = {
   env: Env;
-  config: Required<BotConfig>;
+  config: Required<BotConfig<any>>;
   logger: typeof Logger;
   client: Client;
-  commands: Collection<string, BotCommand>;
-  buttons: Collection<string, ButtonHandler>;
-  modals: Collection<string, ModalHandler>;
+  commands: Collection<string, BotCommand<string>>;
+  buttons: Collection<string, ButtonHandler<string>>;
+  modals: Collection<string, ModalHandler<string>>;
   services: ServiceRegistry;
   addons: string[];
   startedAt: number;
